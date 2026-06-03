@@ -1,7 +1,9 @@
 import type { GatsbyConfig } from "gatsby";
 
 const config: GatsbyConfig = {
-  pathPrefix: '/swimboard-sea-lions',
+  pathPrefix: `/swimboard-sea-lions`,
+  // ... rest of your config
+}
   siteMetadata: {
     title: `Sea Lions Swim Meet Board`,
     siteUrl: `https://canadianator.github.io/swimboard-sea-lions`
