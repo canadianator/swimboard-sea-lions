@@ -4,28 +4,45 @@ import type { HeadFC } from "gatsby"
 export default function CounterPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
+  const stateRef = React.useRef({ bullpen: 0, raceNumber: 0 })
+
+  // Keep ref up to date so the message callback can always read current values safely
+  React.useEffect(() => {
+    stateRef.current = { bullpen, raceNumber }
+  }, [bullpen, raceNumber])
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    // Sync current values immediately upon opening the board
-    const savedBullpen = localStorage.getItem("swim_bullpen")
-    const savedRace = localStorage.getItem("swim_race")
-    if (savedBullpen) setBullpen(parseInt(savedBullpen, 10))
-    if (savedRace) setRaceNumber(parseInt(savedRace, 10))
+    const script = document.createElement("script")
+    script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
+    script.async = true
+    script.onload = () => {
+      const client = window.mqtt.connect("wss://broker.hivemq.com:8000/mqtt")
 
-    // Real-time listener that catches updates from the controller page
-    const handleStorageChange = (e: StorageEvent) => {
-      const savedBullpen = localStorage.getItem("swim_bullpen")
-      const savedRace = localStorage.getItem("swim_race")
-      
-      if (savedBullpen) setBullpen(parseInt(savedBullpen, 10))
-      if (savedRace) setRaceNumber(parseInt(savedRace, 10))
+      client.on("connect", () => {
+        client.subscribe("sealions/bullpen")
+        client.subscribe("sealions/race")
+        client.subscribe("sealions/sync/request")
+      })
+
+      client.on("message", (topic: string, message: any) => {
+        const valueStr = message.toString()
+        
+        if (topic === "sealions/bullpen") {
+          setBullpen(parseInt(valueStr, 10) || 0)
+        } else if (topic === "sealions/race") {
+          setRaceNumber(parseInt(valueStr, 10) || 0)
+        } else if (topic === "sealions/sync/request") {
+          // Send current state back to the remote control tab upon request
+          client.publish("sealions/sync/response", JSON.stringify(stateRef.current))
+        }
+      })
     }
+    document.head.appendChild(script)
 
-    window.addEventListener("storage", handleStorageChange)
     return () => {
-      window.removeEventListener("storage", handleStorageChange)
+      script.remove()
     }
   }, [])
 
