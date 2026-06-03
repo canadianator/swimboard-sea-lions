@@ -1,12 +1,13 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
 
+const TOPIC_ID = "sealions_swim_2026_prod"
+
 export default function CounterPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
   const stateRef = React.useRef({ bullpen: 0, raceNumber: 0 })
 
-  // Keep ref up to date so the message callback can always read current values safely
   React.useEffect(() => {
     stateRef.current = { bullpen, raceNumber }
   }, [bullpen, raceNumber])
@@ -18,26 +19,35 @@ export default function CounterPage() {
     script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
     script.async = true
     script.onload = () => {
-      const client = window.mqtt.connect("wss://broker.hivemq.com:8000/mqtt")
+      try {
+        const client = window.mqtt.connect({
+          host: 'broker.hivemq.com',
+          port: 8000,
+          protocol: 'ws',
+          path: '/mqtt',
+          clientId: 'sl_board_' + Math.random().toString(16).substr(2, 8)
+        })
 
-      client.on("connect", () => {
-        client.subscribe("sealions/bullpen")
-        client.subscribe("sealions/race")
-        client.subscribe("sealions/sync/request")
-      })
+        client.on("connect", () => {
+          client.subscribe(`${TOPIC_ID}/bullpen`)
+          client.subscribe(`${TOPIC_ID}/race`)
+          client.subscribe(`${TOPIC_ID}/sync/request`)
+        })
 
-      client.on("message", (topic: string, message: any) => {
-        const valueStr = message.toString()
-        
-        if (topic === "sealions/bullpen") {
-          setBullpen(parseInt(valueStr, 10) || 0)
-        } else if (topic === "sealions/race") {
-          setRaceNumber(parseInt(valueStr, 10) || 0)
-        } else if (topic === "sealions/sync/request") {
-          // Send current state back to the remote control tab upon request
-          client.publish("sealions/sync/response", JSON.stringify(stateRef.current))
-        }
-      })
+        client.on("message", (topic: string, message: any) => {
+          const valueStr = message.toString()
+          
+          if (topic === `${TOPIC_ID}/bullpen`) {
+            setBullpen(parseInt(valueStr, 10) || 0)
+          } else if (topic === `${TOPIC_ID}/race`) {
+            setRaceNumber(parseInt(valueStr, 10) || 0)
+          } else if (topic === `${TOPIC_ID}/sync/request`) {
+            client.publish(`${TOPIC_ID}/sync/response`, JSON.stringify(stateRef.current))
+          }
+        })
+      } catch (e) {
+        console.error("Scoreboard connection issue:", e)
+      }
     }
     document.head.appendChild(script)
 
