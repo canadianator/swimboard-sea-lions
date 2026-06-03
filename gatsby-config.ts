@@ -3,13 +3,12 @@ import type { GatsbyConfig } from "gatsby";
 const config: GatsbyConfig = {
   pathPrefix: "/swimboard-sea-lions",
   siteMetadata: {
-    title: `swimboard-sea-lions`,
-    siteUrl: `https://www.yourdomain.tld`
+    title: "Swimboard Sea Lions",
+    siteUrl: "https://canadianator.github.io/swimboard-sea-lions",
   },
-  // More easily configure plugins here: https://gatsby.dev/configure-typescript
   plugins: [
-    "gatsby-plugin-styled-components" // Added this line
-  ]
+    "gatsby-plugin-styled-components"
+  ],
 };
 
 export default config;
