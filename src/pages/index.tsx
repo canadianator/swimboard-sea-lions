@@ -26,64 +26,27 @@ const ControllerButton = styled.button`
   cursor: pointer;
 `
 
-const lastCalls = new Map<Function, number>();
-const debounceBy10Ms = <T extends Function>(fn: T) => (...args: any[]) => {
-  if (lastCalls.has(fn)) {
-    if (Date.now() - lastCalls.get(fn)! <= 10) {
-      return;
-    }
-  }
-  lastCalls.set(fn, Date.now());
-  fn(...args);
-}
-
 const IndexPage: React.FC<PageProps> = () => {
   const [controllerCounter, setControllerCounter] = React.useState<Counter | null>(null);
-  const [remainingTime, setRemainingTime] = React.useState<number | null>(null);
   const [counts, setCounts] = React.useState({ bullpen: 0, raceNumber: 0 })
 
- React.useEffect(() => {
-    // Only run this code if we are inside a browser environment
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (controllerCounter) {
-      setCounts(controllerCounter.getAllCounts());
-      /* listening for updates to render */
-      const counterListener = () => {
-        setCounts(controllerCounter.getAllCounts());
-      }
-      controllerCounter.listenForCountChanges(counterListener);
+    const newControllerCounter = new Counter();
+    setControllerCounter(newControllerCounter);
+    setCounts(newControllerCounter.getAllCounts());
 
-      /* listening for arrow keystrokes */
-      const keyListener = debounceBy10Ms((event: KeyboardEvent) => {
-        if (event.key === 'PageUp' || event.key === 'ArrowRight') {
-          controllerCounter.registerTap(LeftRightTap.Right)
-        }
-        if (event.key === 'PageDown' || event.key === 'ArrowLeft') {
-          controllerCounter.registerTap(LeftRightTap.Left)
-        }
-      })
-      window.addEventListener('keydown', keyListener);
-
-      /* watching count-down */
-      const interval = setInterval(() => {
-        setRemainingTime(controllerCounter.getTimeRemainingOnCounterMs());
-      }, 400);
-
-      return () => {
-        controllerCounter.removeListener(counterListener);
-        controllerCounter.dispose();
-        window.removeEventListener('keydown', keyListener);
-        clearInterval(interval);
-      }
-    } else {
-      const newControllerCounter = new Counter();
-      setControllerCounter(newControllerCounter);
-      return () => {
-        newControllerCounter.dispose();
-      };
+    const counterListener = () => {
+      setCounts(newControllerCounter.getAllCounts());
     }
-  }, [controllerCounter]);
+    newControllerCounter.listenForCountChanges(counterListener);
+
+    return () => {
+      newControllerCounter.removeListener(counterListener);
+      newControllerCounter.dispose();
+    }
+  }, []);
 
   return (
     <PageContainer>
