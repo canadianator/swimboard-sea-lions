@@ -1,8 +1,25 @@
-import './controller/controller.css'
 import * as React from "react"
 import { Link, type HeadFC, type PageProps } from "gatsby"
 import styled from 'styled-components'
 import { Counter, CounterKeys, FormatCount, LeftRightTap } from '../data/counts'
+
+// Inline styles replacing the controller.css file to guarantee a successful build
+const PageContainer = styled('div')`
+  width: calc(100% - 8px);
+  height: calc(100vh - 8px);
+  display: flex;
+  padding: 4px;
+  background-color: whitesmoke;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  align-content: space-around;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: #222;
+    color: white;
+  }
+`
 
 const CounterDiv = styled('div')`
   height: 35vh;
@@ -32,6 +49,7 @@ const ControllerButton = styled('button')`
   width: 100%;
   height: 40px;
   margin: 2px;
+  cursor: pointer;
 `
 
 // protecting against really fast acting keyboards
@@ -85,7 +103,6 @@ const IndexPage: React.FC<PageProps> = () => {
     } else {
       const newControllerCounter = new Counter();
       setControllerCounter(newControllerCounter);
-      // cleanup if the component dismounts
       return () => {
         newControllerCounter.dispose();
       };
@@ -94,7 +111,7 @@ const IndexPage: React.FC<PageProps> = () => {
 
   return (
     <>
-      <div id="controller" style={{width: 'calc(100% - 8px)', height: 'calc(100vh - 8px)', display: 'flex', padding: '4px', backgroundColor: 'whitesmoke', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', alignContent: 'space-around' }}>
+      <PageContainer id="controller">
         <h1> Welcome </h1>
         <div>
           This page acts as a controller for <Link to='../counter' >the swim meet board</Link> which has a bullpen and Event counter. That page is designed to scale to large and varying screen sizes.
@@ -159,7 +176,7 @@ const IndexPage: React.FC<PageProps> = () => {
             </div>
           </div>
         </div>
-      </div>
+      </PageContainer>
     </>
   )
 }
