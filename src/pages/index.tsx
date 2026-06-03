@@ -1,40 +1,84 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
 
+declare global {
+  interface Window {
+    mqtt: any;
+  }
+}
+
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
+  const [status, setStatus] = React.useState("Disconnected")
+  const clientRef = React.useRef<any>(null)
 
-  // Load initial values from localStorage on page load
   React.useEffect(() => {
     if (typeof window === "undefined") return
-    
-    const savedBullpen = localStorage.getItem("swim_bullpen")
-    const savedRace = localStorage.getItem("swim_race")
-    
-    if (savedBullpen) setBullpen(parseInt(savedBullpen, 10))
-    if (savedRace) setRaceNumber(parseInt(savedRace, 10))
+
+    // Load the official browser-optimized MQTT client library via CDN
+    const script = document.createElement("script")
+    script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
+    script.async = true
+    script.onload = () => {
+      // Connect to the public broker over secure WebSockets
+      const client = window.mqtt.connect("wss://broker.hivemq.com:8000/mqtt")
+      clientRef.current = client
+
+      client.on("connect", () => {
+        setStatus("Connected")
+        // Ask the display board to send its current numbers if it's already open
+        client.publish("sealions/sync/request", "sync")
+      })
+
+      client.on("close", () => {
+        setStatus("Disconnected")
+      })
+
+      // Listen for incoming sync responses from the scoreboard
+      client.subscribe("sealions/sync/response")
+      client.on("message", (topic: string, message: any) => {
+        if (topic === "sealions/sync/response") {
+          try {
+            const data = JSON.parse(message.toString())
+            if (typeof data.bullpen === "number") setBullpen(data.bullpen)
+            if (typeof data.raceNumber === "number") setRaceNumber(data.raceNumber)
+          } catch (e) {
+            console.error(e)
+          }
+        }
+      })
+    }
+    document.head.appendChild(script)
+
+    return () => {
+      if (clientRef.current) clientRef.current.end()
+      script.remove()
+    }
   }, [])
 
   const updateBullpen = (newValue: number) => {
     const val = Math.max(0, newValue)
     setBullpen(val)
-    localStorage.setItem("swim_bullpen", String(val))
-    // Trigger a storage event manually to notify other tabs on the same device
-    localStorage.setItem("swim_timestamp", String(Date.now()))
+    if (clientRef.current && status === "Connected") {
+      clientRef.current.publish("sealions/bullpen", String(val), { retain: true })
+    }
   }
 
   const updateRace = (newValue: number) => {
     const val = Math.max(0, newValue)
     setRaceNumber(val)
-    localStorage.setItem("swim_race", String(val))
-    // Trigger a storage event manually to notify other tabs on the same device
-    localStorage.setItem("swim_timestamp", String(Date.now()))
+    if (clientRef.current && status === "Connected") {
+      clientRef.current.publish("sealions/race", String(val), { retain: true })
+    }
   }
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1 style={{ fontSize: '26px', color: '#0070f3', margin: '10px 0 20px 0', fontWeight: '800' }}>Sea Lions Remote</h1>
+      <h1 style={{ fontSize: '26px', color: '#0070f3', margin: '10px 0 2px 0', fontWeight: '800' }}>Sea Lions Remote</h1>
+      <div style={{ fontSize: '14px', color: status === "Connected" ? "#34c759" : "#ff3b30", marginBottom: '20px', fontWeight: 'bold' }}>
+        ● {status}
+      </div>
       
       <div style={{ border: '2px solid #0070f3', padding: '20px', borderRadius: '12px', marginBottom: '25px', backgroundColor: '#f0f7ff' }}>
         <div style={{ marginBottom: '15px' }}>
@@ -59,16 +103,6 @@ export default function IndexPage() {
           <button style={{ padding: '12px', margin: '5px', width: '90%', fontSize: '16px', backgroundColor: '#eee', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer' }} onClick={() => updateRace(raceNumber - 1)}>- SUB</button>
         </div>
       </div>
-
-      {/* Explicitly targets the relative project page path layout */}
-      <a 
-        href="./counter/" 
-        target="_blank" 
-        rel="noopener noreferrer"
-        style={{ display: 'inline-block', padding: '14px 24px', backgroundColor: '#222', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', width: '85%', fontSize: '16px' }}
-      >
-        Open Scoreboard Screen ↗
-      </a>
     </div>
   )
 }
