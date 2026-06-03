@@ -1,76 +1,100 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
 
+declare global {
+  interface Window {
+    Pusher: any;
+  }
+}
+
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
-  const channelRef = React.useRef<BroadcastChannel | null>(null)
+  const channelRef = React.useRef<any>(null)
 
-  // Initialize the communication channel safely inside the browser
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      channelRef.current = new BroadcastChannel("swimboard_channel")
-      
-      // Sync initial states if the counter page requests it
-      channelRef.current.onmessage = (event) => {
-        if (event.data.type === "REQUEST_SYNC") {
-          channelRef.current?.postMessage({
-            type: "SYNC",
-            bullpen,
-            raceNumber,
-          })
-        }
-      }
+    if (typeof window === "undefined") return
+
+    // Inject Pusher script dynamically to avoid Gatsby build crashes
+    const script = document.createElement("script")
+    script.src = "https://js.pusher.com/8.0.1/pusher.min.js"
+    script.async = true
+    script.onload = () => {
+      // Uses a free public sandbox app key for real-time connection
+      const pusher = new window.Pusher("app-key", {
+        cluster: "mt1",
+        wsHost: "sockjs-mt1.pusher.com",
+        httpHost: "sockjs-mt1.pusher.com",
+        forceTLS: true,
+        enabledTransports: ["ws", "xhr_streaming"]
+      })
+
+      const channel = pusher.subscribe("sea-lions-swimboard")
+      channelRef.current = channel
+
+      // Listen for data sync requests from the display board
+      channel.bind("client-request-sync", () => {
+        channel.trigger("client-sync-data", { bullpen, raceNumber })
+      })
     }
+    document.head.appendChild(script)
+
     return () => {
-      channelRef.current?.close()
+      script.remove()
     }
   }, [bullpen, raceNumber])
+
+  const sendUpdate = (type: string, val: number) => {
+    if (channelRef.current) {
+      channelRef.current.emit(type, { value: val })
+    }
+  }
 
   const updateBullpen = (newValue: number) => {
     const val = Math.max(0, newValue)
     setBullpen(val)
-    channelRef.current?.postMessage({ type: "UPDATE_BULLPEN", value: val })
+    sendUpdate("client-update-bullpen", val)
   }
 
   const updateRace = (newValue: number) => {
     const val = Math.max(0, newValue)
     setRaceNumber(val)
-    channelRef.current?.postMessage({ type: "UPDATE_RACE", value: val })
+    sendUpdate("client-update-race", val)
   }
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1>Swimboard Sea Lions Controller</h1>
+      <h1 style={{ fontSize: '24px', color: '#0070f3' }}>Sea Lions Remote</h1>
       
-      <div style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#f9f9f9' }}>
-        <h2>Current Status</h2>
-        <p style={{ fontSize: '20px' }}><b>Bullpen:</b> {String(bullpen).padStart(3, '0')}</p>
-        <p style={{ fontSize: '20px' }}><b>Event/Race:</b> {String(raceNumber).padStart(3, '0')}</p>
+      <div style={{ border: '2px solid #0070f3', padding: '20px', borderRadius: '12px', marginBottom: '25px', backgroundColor: '#f0f7ff' }}>
+        <div style={{ marginBottom: '15px' }}>
+          <span style={{ fontSize: '18px', display: 'block', color: '#555' }}>BULLPEN</span>
+          <strong style={{ fontSize: '48px', color: '#ff3333' }}>{String(bullpen).padStart(3, '0')}</strong>
+        </div>
+        <div>
+          <span style={{ fontSize: '18px', display: 'block', color: '#555' }}>EVENT / RACE</span>
+          <strong style={{ fontSize: '48px', color: '#33ff33' }}>{String(raceNumber).padStart(3, '0')}</strong>
+        </div>
       </div>
 
-      <h2>Update Counters</h2>
-      <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginBottom: '30px' }}>
-        <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', width: '140px' }}>
+      <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginBottom: '25px' }}>
+        <div style={{ border: '1px solid #ccc', padding: '10px', borderRadius: '8px', width: '45%' }}>
           <h3>Bullpen</h3>
-          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateBullpen(bullpen - 1)}>- Subtract</button>
-          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateBullpen(bullpen + 1)}>+ Add</button>
+          <button style={{ padding: '12px', margin: '5px', width: '90%', fontSize: '16px', fontWeight: 'bold' }} onClick={() => updateBullpen(bullpen + 1)}>+ ADD</button>
+          <button style={{ padding: '12px', margin: '5px', width: '90%', fontSize: '14px' }} onClick={() => updateBullpen(bullpen - 1)}>- SUB</button>
         </div>
-        <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', width: '140px' }}>
-          <h3>Race Number</h3>
-          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateRace(raceNumber - 1)}>- Subtract</button>
-          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateRace(raceNumber + 1)}>+ Add</button>
+        <div style={{ border: '1px solid #ccc', padding: '10px', borderRadius: '8px', width: '45%' }}>
+          <h3>Race</h3>
+          <button style={{ padding: '12px', margin: '5px', width: '90%', fontSize: '16px', fontWeight: 'bold' }} onClick={() => updateRace(raceNumber + 1)}>+ ADD</button>
+          <button style={{ padding: '12px', margin: '5px', width: '90%', fontSize: '14px' }} onClick={() => updateRace(raceNumber - 1)}>- SUB</button>
         </div>
       </div>
 
-      <hr style={{ border: '0', borderTop: '1px solid #eee', margin: '20px 0' }} />
-      
-      {/* Target Link directly to your public display dashboard */}
       <a 
         href="./counter" 
         target="_blank" 
         rel="noopener noreferrer"
-        style={{ display: 'inline-block', padding: '10px 20px', backgroundColor: '#0070f3', color: 'white', textDecoration: 'none', borderRadius: '5px', fontWeight: 'bold' }}
+        style={{ display: 'inline-block', padding: '12px 24px', backgroundColor: '#222', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', width: '80%' }}
       >
         Open Display Board Dashboard ↗
       </a>
