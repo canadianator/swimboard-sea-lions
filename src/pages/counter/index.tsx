@@ -1,58 +1,42 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
 
-const TOPIC_ID = "sealions_swim_2026_prod"
+const CHANNEL_ID = "sealions_swim_meet_2026"
+const API_KEY = "v3/1?api_key=o7YgUXvAL92Z9ZjLg90Z5f5Z5f5Z5f5Z5f5Z5f5Z"
 
 export default function CounterPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
-  const stateRef = React.useRef({ bullpen: 0, raceNumber: 0 })
-
-  React.useEffect(() => {
-    stateRef.current = { bullpen, raceNumber }
-  }, [bullpen, raceNumber])
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    const script = document.createElement("script")
-    script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
-    script.async = true
-    script.onload = () => {
+    const ws = new WebSocket(`wss://demo.piesocket.com/${API_KEY}&notify=1`)
+
+    ws.onopen = () => {
+      // Request current data from the controller if it's open
+      ws.send(JSON.stringify({ type: "sync-request", channel: CHANNEL_ID }))
+    }
+
+    ws.onmessage = (event) => {
       try {
-        const client = window.mqtt.connect({
-          host: 'broker.hivemq.com',
-          port: 8000,
-          protocol: 'ws',
-          path: '/mqtt',
-          clientId: 'sl_board_' + Math.random().toString(16).substr(2, 8)
-        })
+        const msg = JSON.parse(event.data)
+        if (msg.channel !== CHANNEL_ID) return
 
-        client.on("connect", () => {
-          client.subscribe(`${TOPIC_ID}/bullpen`)
-          client.subscribe(`${TOPIC_ID}/race`)
-          client.subscribe(`${TOPIC_ID}/sync/request`)
-        })
-
-        client.on("message", (topic: string, message: any) => {
-          const valueStr = message.toString()
-          
-          if (topic === `${TOPIC_ID}/bullpen`) {
-            setBullpen(parseInt(valueStr, 10) || 0)
-          } else if (topic === `${TOPIC_ID}/race`) {
-            setRaceNumber(parseInt(valueStr, 10) || 0)
-          } else if (topic === `${TOPIC_ID}/sync/request`) {
-            client.publish(`${TOPIC_ID}/sync/response`, JSON.stringify(stateRef.current))
-          }
-        })
+        if (msg.type === "update") {
+          setBullpen(parseInt(msg.bullpen, 10) || 0)
+          setRaceNumber(parseInt(msg.race, 10) || 0)
+        } else if (msg.type === "sync-broadcast") {
+          setBullpen(parseInt(msg.bullpen, 10) || 0)
+          setRaceNumber(parseInt(msg.race, 10) || 0)
+        }
       } catch (e) {
-        console.error("Scoreboard connection issue:", e)
+        console.error(e)
       }
     }
-    document.head.appendChild(script)
 
     return () => {
-      script.remove()
+      ws.close()
     }
   }, [])
 
