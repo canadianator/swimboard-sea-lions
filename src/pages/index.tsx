@@ -2,7 +2,7 @@ import * as React from "react"
 import { HeadFC, PageProps } from "gatsby"
 // Import your actual controller/counter components here
 // (Adjust the path below depending on where you saved them)
-import Controller from "../components/Controller" 
+import { Counter, CounterKeys, FormatCount, LeftRightTap } from '../data/counts'
 
 const IndexPage: React.FC<PageProps> = () => {
   return (
