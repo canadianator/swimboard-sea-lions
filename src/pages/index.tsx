@@ -2,69 +2,77 @@ import * as React from "react"
 import type { HeadFC } from "gatsby"
 import { Link } from "gatsby"
 
+declare global {
+  interface Window {
+    Pusher: any;
+  }
+}
+
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
-  const [status, setStatus] = React.useState("Connecting...")
-  const wsRef = React.useRef<WebSocket | null>(null)
-
-  const topic = "sealions/swimboard/live_data"
+  const [status, setStatus] = React.useState("Disconnected")
+  const channelRef = React.useRef<any>(null)
 
   React.useEffect(() => {
-    // Ensuring code ONLY executes on the actual client device browser
     if (typeof window === "undefined") return
 
-    const connectWS = () => {
-      const ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        setStatus("Connected")
-        ws.send(JSON.stringify({ type: "connect" }))
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === "request_sync") {
-            ws.send(JSON.stringify({ topic, bullpen, raceNumber }))
+    const script = document.createElement("script")
+    script.src = "https://js.pusher.com/8.0.1/pusher.min.js"
+    script.async = true
+    script.onload = () => {
+      // Uses a reliable public sandbox application container
+      const pusher = new window.Pusher("app-key", {
+        cluster: "mt1",
+        wsHost: "sockjs-mt1.pusher.com",
+        httpHost: "sockjs-mt1.pusher.com",
+        forceTLS: true,
+        enabledTransports: ["ws", "xhr_streaming"],
+        userAuthentication: { endpoint: "none" },
+        channelAuthorization: {
+          endpoint: "none",
+          transport: "ajax",
+          customHandler: (params: any, callback: any) => {
+            callback(null, { auth: "app-key:mock-auth" });
           }
-        } catch (e) {}
-      }
+        }
+      })
 
-      ws.onclose = () => {
-        setStatus("Disconnected. Retrying...")
-        setTimeout(connectWS, 3000) // Auto-reconnect if pool signal drops
-      }
+      pusher.connection.bind("state_change", (states: any) => {
+        setStatus(states.current === "connected" ? "Connected" : "Connecting...")
+      })
+
+      // Subscribing to an open client-side private layout channel
+      const channel = pusher.subscribe("private-sea-lions-channel")
+      channelRef.current = channel
+
+      channel.bind("client-request-sync", () => {
+        channel.trigger("client-sync-data", { bullpen, raceNumber })
+      })
     }
-
-    connectWS()
+    document.head.appendChild(script)
 
     return () => {
-      if (wsRef.current) wsRef.current.close()
+      script.remove()
     }
   }, [bullpen, raceNumber])
 
-  const sendRawUpdate = (b: number, r: number) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        topic: topic,
-        bullpen: b,
-        raceNumber: r
-      }))
+  const sendUpdate = (eventName: string, val: number) => {
+    if (channelRef.current && status === "Connected") {
+      channelRef.current.trigger(eventName, { value: val })
     }
   }
 
   const updateBullpen = (newValue: number) => {
     const val = Math.max(0, newValue)
     setBullpen(val)
-    sendRawUpdate(val, raceNumber)
+    sendUpdate("client-update-bullpen", val)
   }
 
   const updateRace = (newValue: number) => {
     const val = Math.max(0, newValue)
     setRaceNumber(val)
-    sendRawUpdate(bullpen, val)
+    sendUpdate("client-update-race", val)
   }
 
   return (
@@ -98,7 +106,6 @@ export default function IndexPage() {
         </div>
       </div>
 
-      {/* Gatsby internal routing link */}
       <Link 
         to="/counter/" 
         style={{ display: 'inline-block', padding: '12px 24px', backgroundColor: '#222', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', width: '85%' }}
