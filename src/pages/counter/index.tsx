@@ -8,49 +8,24 @@ export default function CounterPage() {
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    const script = document.createElement("script")
-    script.src = "https://js.pusher.com/8.0.1/pusher.min.js"
-    script.async = true
-    script.onload = () => {
-      const pusher = new window.Pusher("app-key", {
-        cluster: "mt1",
-        wsHost: "sockjs-mt1.pusher.com",
-        httpHost: "sockjs-mt1.pusher.com",
-        forceTLS: true,
-        enabledTransports: ["ws", "xhr_streaming"],
-        userAuthentication: { endpoint: "none" },
-        channelAuthorization: {
-          endpoint: "none",
-          transport: "ajax",
-          customHandler: (params: any, callback: any) => {
-            callback(null, { auth: "app-key:mock-auth" });
-          }
-        }
-      })
+    // Sync current values immediately upon opening the board
+    const savedBullpen = localStorage.getItem("swim_bullpen")
+    const savedRace = localStorage.getItem("swim_race")
+    if (savedBullpen) setBullpen(parseInt(savedBullpen, 10))
+    if (savedRace) setRaceNumber(parseInt(savedRace, 10))
 
-      const channel = pusher.subscribe("private-sea-lions-channel")
-
-      channel.bind("client-update-bullpen", (data: { value: number }) => {
-        setBullpen(data.value)
-      })
-
-      channel.bind("client-update-race", (data: { value: number }) => {
-        setRaceNumber(data.value)
-      })
-
-      channel.bind("client-sync-data", (data: { bullpen: number, raceNumber: number }) => {
-        setBullpen(data.bullpen)
-        setRaceNumber(data.raceNumber)
-      })
-
-      channel.bind("pusher:subscription_succeeded", () => {
-        channel.emit("client-request-sync", {})
-      })
+    // Real-time listener that catches updates from the controller page
+    const handleStorageChange = (e: StorageEvent) => {
+      const savedBullpen = localStorage.getItem("swim_bullpen")
+      const savedRace = localStorage.getItem("swim_race")
+      
+      if (savedBullpen) setBullpen(parseInt(savedBullpen, 10))
+      if (savedRace) setRaceNumber(parseInt(savedRace, 10))
     }
-    document.head.appendChild(script)
 
+    window.addEventListener("storage", handleStorageChange)
     return () => {
-      script.remove()
+      window.removeEventListener("storage", handleStorageChange)
     }
   }, [])
 
