@@ -35,7 +35,9 @@ jobs:
         run: npm install
 
       - name: Build Gatsby
-        run: npm run build
+        run: |
+          npx gatsby clean
+          npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
