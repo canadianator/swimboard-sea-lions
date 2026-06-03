@@ -1,7 +1,7 @@
 import * as React from "react"
-import { type HeadFC, type PageProps } from "gatsby"
+import type { HeadFC, PageProps } from "gatsby"
 import styled from 'styled-components'
-import { Counter, CounterKeys, FormatCount, LeftRightTap } from '../data/counts'
+import { Counter, CounterKeys, FormatCount } from '../data/counts'
 
 const PageContainer = styled.div`
   width: calc(100% - 8px);
@@ -26,7 +26,7 @@ const ControllerButton = styled.button`
   cursor: pointer;
 `
 
-const IndexPage: React.FC<PageProps> = () => {
+export default function IndexPage() {
   const [controllerCounter, setControllerCounter] = React.useState<Counter | null>(null);
   const [counts, setCounts] = React.useState({ bullpen: 0, raceNumber: 0 })
 
@@ -90,5 +90,4 @@ const IndexPage: React.FC<PageProps> = () => {
   )
 }
 
-export default IndexPage
 export const Head: HeadFC = () => <title>Sea Lions Swim Controller</title>
