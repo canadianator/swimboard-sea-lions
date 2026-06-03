@@ -1,187 +1,81 @@
-import './controller.css'
 import * as React from "react"
-import { Link, type HeadFC, type PageProps } from "gatsby"
-import styled from 'styled-components'
-import { Counter, CounterKeys, FormatCount, LeftRightTap } from '../../data/counts'
+import type { HeadFC } from "gatsby"
 
-const CounterDiv = styled('div')`
-  height: 35vh;
-  width: 30vw;
-  border-radius: 17vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-`
+export default function IndexPage() {
+  const [bullpen, setBullpen] = React.useState(0)
+  const [raceNumber, setRaceNumber] = React.useState(0)
+  const channelRef = React.useRef<BroadcastChannel | null>(null)
 
-const CounterNumber = styled('div')`
-  color: white;
-  font-size: 18vh;
-  width: 100%;
-  text-align: center;
-`
-
-const CounterLabel = styled('div')`
-  color: white;
-  font-size: 3.5vw;
-  width: 100%;
-  text-align: center;
-`
-
-const ControllerButton = styled('button')`
-  width: 100%;
-  height: 40px;
-  margin: 2px;
-`
-// protecting against really fast acting keyboards
-const lastCalls = new Map<Function, number>();
-const debounceBy10Ms = <T extends Function>(fn: T) => (...args: any[]) => {
-  if (lastCalls.has(fn)) {
-    if (Date.now() - lastCalls.get(fn)! <= 10) {
-      return;
-    }
-  }
-  lastCalls.set(fn, Date.now());
-  fn(...args);
-}
-
-const IndexPage: React.FC<PageProps> = () => {
-  const [controllerCounter, setControllerCounter] = React.useState<Counter | null>(null);
-  const [remainingTime, setRemainingTime] = React.useState<number | null>(null);
-  const [counts, setCounts] = React.useState({
-    bullpen: 0,
-    raceNumber: 0
-  })
+  // Initialize the communication channel safely inside the browser
   React.useEffect(() => {
-    if (controllerCounter) {
-      setCounts(controllerCounter.getAllCounts());
-  
-      /* listening for updates to render */
-      const counterListener = () => {
-        setCounts(controllerCounter.getAllCounts());
-      }
-      controllerCounter.listenForCountChanges(counterListener);
-
-      /* listening for arrow keystrokes */
-      const keyListener = debounceBy10Ms((event: KeyboardEvent) => {
-        if (event.key === 'PageUp' || event.key === 'ArrowRight') {
-          controllerCounter.registerTap(LeftRightTap.Right)
+    if (typeof window !== "undefined") {
+      channelRef.current = new BroadcastChannel("swimboard_channel")
+      
+      // Sync initial states if the counter page requests it
+      channelRef.current.onmessage = (event) => {
+        if (event.data.type === "REQUEST_SYNC") {
+          channelRef.current?.postMessage({
+            type: "SYNC",
+            bullpen,
+            raceNumber,
+          })
         }
-        if (event.key === 'PageDown' || event.key === 'ArrowLeft') {
-          controllerCounter.registerTap(LeftRightTap.Left)
-        }
-      })
-      addEventListener('keydown', keyListener);
-      /* watching count-down */
-      const interval = setInterval(() => {
-        setRemainingTime(controllerCounter.getTimeRemainingOnCounterMs());
-      }, 400);
-
-      return () => {
-        controllerCounter.removeListener(counterListener);
-        controllerCounter.dispose();
-        removeEventListener('keydown', keyListener);
-        clearInterval(interval);
       }
-    } else {
-      const newControllerCounter = new Counter();
-      setControllerCounter(newControllerCounter);
-      // cleanup if the component dismounts
-      return () => {
-        newControllerCounter.dispose();
-      };
     }
-  }, [controllerCounter]);
+    return () => {
+      channelRef.current?.close()
+    }
+  }, [bullpen, raceNumber])
+
+  const updateBullpen = (newValue: number) => {
+    const val = Math.max(0, newValue)
+    setBullpen(val)
+    channelRef.current?.postMessage({ type: "UPDATE_BULLPEN", value: val })
+  }
+
+  const updateRace = (newValue: number) => {
+    const val = Math.max(0, newValue)
+    setRaceNumber(val)
+    channelRef.current?.postMessage({ type: "UPDATE_RACE", value: val })
+  }
+
   return (
-    <>
-      <div id="controller" style={{
-        width: 'calc(100% - 8px)',
-        height: 'calc(100vh - 8px)',
-        display: 'flex',
-        padding: '4px',
-        backgroundColor: 'whitesmoke',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignContent: 'space-around'
-      }}>
-        <h1>
-          Welcome
-        </h1>
-        <div>
-          This page acts as a controller for <Link to='../counter' >the swim meet board</Link> which has a bullpen and Event counter. That page is designed to scale to large and varying screen sizes.
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
+      <h1>Swimboard Sea Lions Controller</h1>
+      
+      <div style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#f9f9f9' }}>
+        <h2>Current Status</h2>
+        <p style={{ fontSize: '20px' }}><b>Bullpen:</b> {String(bullpen).padStart(3, '0')}</p>
+        <p style={{ fontSize: '20px' }}><b>Event/Race:</b> {String(raceNumber).padStart(3, '0')}</p>
+      </div>
+
+      <h2>Update Counters</h2>
+      <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginBottom: '30px' }}>
+        <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', width: '140px' }}>
+          <h3>Bullpen</h3>
+          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateBullpen(bullpen - 1)}>- Subtract</button>
+          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateBullpen(bullpen + 1)}>+ Add</button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'left' }}>
-          <h2>Here are the current counters</h2>
-          <div style={{ maxWidth: '150px' }}>
-            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-              <div><b>Bullpen</b></div> <div>{FormatCount(counts.bullpen)}</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-              <div><b>Event</b></div> <div>{FormatCount(counts.raceNumber)}</div>
-            </div>
-          </div>
-          <h2>Update the counters</h2>
-          <div>
-            Use the buttons below to update the counts. You can also use the left and right arrow keys.
-            <br />
-            There are short cuts for double and triple tapping within a <b>3 second</b> window.
-            {/* little count down indicator */}
-            {' '}{remainingTime != null && remainingTime > 0 ? `${Math.floor(remainingTime / 1000)}.${String(remainingTime / 1000 - Math.floor(remainingTime / 1000)).split('.').pop()?.substring(0, 2)}` : ''}
-            <br />This is meant to work with a power point clicker:
-            <br />
-            <br />
-            <b>Left</b> - subtracts from bullpen <br />
-            <b>Right</b> - adds to the bullpen <br />
-            <b>Left Left</b> subtracts from racenumber <br />
-            <b>Right Right</b> - adds to racenumber <br />
-            <b>Left Left Left</b> - subtracts from both <br />
-            <b>Right Right Right</b> - adds to both <br />
-          </div>
-          <div>
-            <br />
-            OR use these buttons
-            <div>
-              <table width={"100%"}>
-                <thead>
-                  <tr>
-                    <th>Bullpen</th>
-                    <th>Race Number</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <ControllerButton onClick={() => controllerCounter?.decrementCount(CounterKeys.Bullpen)}>Subtract</ControllerButton>
-                      <ControllerButton onClick={() => controllerCounter?.incrementCount(CounterKeys.Bullpen)}>Add</ControllerButton>
-                    </td>
-                    <td>
-                      <ControllerButton onClick={() => controllerCounter?.decrementCount(CounterKeys.RaceNumber)}>Subtract</ControllerButton>
-                      <ControllerButton onClick={() => controllerCounter?.incrementCount(CounterKeys.RaceNumber)}>Add</ControllerButton>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={2}>
-                      <ControllerButton onClick={() => {
-                        controllerCounter?.decrementCount(CounterKeys.Bullpen);
-                        controllerCounter?.decrementCount(CounterKeys.RaceNumber);
-                      }}>Subtract both</ControllerButton>
-                      <ControllerButton onClick={() => {
-                        controllerCounter?.incrementCount(CounterKeys.Bullpen);
-                        controllerCounter?.incrementCount(CounterKeys.RaceNumber);
-                      }}>Add both</ControllerButton>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '6px', width: '140px' }}>
+          <h3>Race Number</h3>
+          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateRace(raceNumber - 1)}>- Subtract</button>
+          <button style={{ padding: '8px', margin: '4px', width: '80%' }} onClick={() => updateRace(raceNumber + 1)}>+ Add</button>
         </div>
       </div>
-    </>
+
+      <hr style={{ border: '0', borderTop: '1px solid #eee', margin: '20px 0' }} />
+      
+      {/* Target Link directly to your public display dashboard */}
+      <a 
+        href="./counter" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        style={{ display: 'inline-block', padding: '10px 20px', backgroundColor: '#0070f3', color: 'white', textDecoration: 'none', borderRadius: '5px', fontWeight: 'bold' }}
+      >
+        Open Display Board Dashboard ↗
+      </a>
+    </div>
   )
 }
-
-export default IndexPage
 
 export const Head: HeadFC = () => <title>Sea Lions Swim Controller</title>
