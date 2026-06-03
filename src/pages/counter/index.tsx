@@ -4,53 +4,30 @@ import type { HeadFC } from "gatsby"
 export default function CounterPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
+  const topic = "sealions/swimboard/live_data"
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    const script = document.createElement("script")
-    script.src = "https://js.pusher.com/8.0.1/pusher.min.js"
-    script.async = true
-    script.onload = () => {
-      const pusher = new window.Pusher("app-key", {
-        cluster: "mt1",
-        wsHost: "sockjs-mt1.pusher.com",
-        httpHost: "sockjs-mt1.pusher.com",
-        forceTLS: true,
-        enabledTransports: ["ws", "xhr_streaming"],
-        userAuthentication: { endpoint: "none" },
-        channelAuthorization: {
-          endpoint: "none",
-          transport: "ajax",
-          customHandler: (params: any, callback: any) => {
-            callback(null, { auth: "app-key:mock-auth" });
-          }
-        }
-      })
+    const ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
 
-      const channel = pusher.subscribe("private-sea-lions-swimboard")
-
-      channel.bind("client-update-bullpen", (data: { value: number }) => {
-        setBullpen(data.value)
-      })
-
-      channel.bind("client-update-race", (data: { value: number }) => {
-        setRaceNumber(data.value)
-      })
-
-      channel.bind("client-sync-data", (data: { bullpen: number, raceNumber: number }) => {
-        setBullpen(data.bullpen)
-        setRaceNumber(data.raceNumber)
-      })
-
-      channel.bind("pusher:subscription_succeeded", () => {
-        channel.emit("client-request-sync", {})
-      })
+    ws.onopen = () => {
+      // Announce presence so the controller sends its current numbers right away
+      ws.send(JSON.stringify({ type: "request_sync" }))
     }
-    document.head.appendChild(script)
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.topic === topic) {
+          setBullpen(data.bullpen)
+          setRaceNumber(data.raceNumber)
+        }
+      } catch (e) {}
+    }
 
     return () => {
-      script.remove()
+      ws.close()
     }
   }, [])
 
@@ -68,22 +45,22 @@ export default function CounterPage() {
       margin: 0,
       overflow: 'hidden'
     }}>
-      <div style={{ textAlign: 'center', width: '90%', maxWidth: '1200px' }}>
-        <h1 style={{ fontSize: '3.5rem', color: '#0070f3', letterSpacing: '4px', margin: '0 0 40px 0', textTransform: 'uppercase', fontWeight: '900' }}>
-          Sea Lions Swimboard
+      <div style={{ textAlign: 'center', width: '95%', maxWidth: '1300px' }}>
+        <h1 style={{ fontSize: '4rem', color: '#0070f3', letterSpacing: '6px', margin: '0 0 40px 0', textTransform: 'uppercase', fontWeight: '900' }}>
+          Sea Lions Scoreboard
         </h1>
         
         <div style={{ display: 'flex', justifyContent: 'space-around', gap: '40px', width: '100%' }}>
-          <div style={{ backgroundColor: '#141416', padding: '40px', borderRadius: '24px', width: '45%', border: '1px solid #222', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontSize: '2.5rem', color: '#888', fontWeight: 'bold', marginBottom: '20px' }}>BULLPEN</div>
-            <div style={{ fontSize: '12rem', fontWeight: 'bold', color: '#ff3b30', fontFamily: 'monospace', lineHeight: '1' }}>
+          <div style={{ backgroundColor: '#141416', padding: '50px 20px', borderRadius: '32px', width: '46%', border: '2px solid #222' }}>
+            <div style={{ fontSize: '3rem', color: '#e5e5ea', fontWeight: 'bold', marginBottom: '15px', letterSpacing: '2px' }}>BULLPEN</div>
+            <div style={{ fontSize: '15rem', fontWeight: 'bold', color: '#ff453a', fontFamily: 'monospace', lineHeight: '1' }}>
               {String(bullpen).padStart(3, '0')}
             </div>
           </div>
           
-          <div style={{ backgroundColor: '#141416', padding: '40px', borderRadius: '24px', width: '45%', border: '1px solid #222', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontSize: '2.5rem', color: '#888', fontWeight: 'bold', marginBottom: '20px' }}>EVENT / RACE</div>
-            <div style={{ fontSize: '12rem', fontWeight: 'bold', color: '#34c759', fontFamily: 'monospace', lineHeight: '1' }}>
+          <div style={{ backgroundColor: '#141416', padding: '50px 20px', borderRadius: '32px', width: '46%', border: '2px solid #222' }}>
+            <div style={{ fontSize: '3rem', color: '#e5e5ea', fontWeight: 'bold', marginBottom: '15px', letterSpacing: '2px' }}>EVENT / RACE</div>
+            <div style={{ fontSize: '15rem', fontWeight: 'bold', color: '#30d158', fontFamily: 'monospace', lineHeight: '1' }}>
               {String(raceNumber).padStart(3, '0')}
             </div>
           </div>
