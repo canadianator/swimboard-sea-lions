@@ -7,6 +7,9 @@ declare global {
   }
 }
 
+// A unique ID suffix to prevent global public topic collisions
+const TOPIC_ID = "sealions_swim_2026_prod"
+
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
@@ -16,43 +19,59 @@ export default function IndexPage() {
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    // Load the official browser-optimized MQTT client library via CDN
     const script = document.createElement("script")
     script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
     script.async = true
     script.onload = () => {
-      // Connect to the public broker over secure WebSockets
-      const client = window.mqtt.connect("wss://broker.hivemq.com:8000/mqtt")
-      clientRef.current = client
+      try {
+        // Explicitly separating connection details fixes browser websocket framing issues
+        const client = window.mqtt.connect({
+          host: 'broker.hivemq.com',
+          port: 8000,
+          protocol: 'ws',
+          path: '/mqtt',
+          clientId: 'sl_remote_' + Math.random().toString(16).substr(2, 8)
+        })
+        
+        clientRef.current = client
 
-      client.on("connect", () => {
-        setStatus("Connected")
-        // Ask the display board to send its current numbers if it's already open
-        client.publish("sealions/sync/request", "sync")
-      })
+        client.on("connect", () => {
+          setStatus("Connected")
+          client.subscribe(`${TOPIC_ID}/sync/response`)
+          // Ask display board for data if it's already running
+          client.publish(`${TOPIC_ID}/sync/request`, "sync")
+        })
 
-      client.on("close", () => {
-        setStatus("Disconnected")
-      })
+        client.on("error", (err: any) => {
+          console.error("MQTT Error:", err)
+          setStatus("Error Connecting")
+        })
 
-      // Listen for incoming sync responses from the scoreboard
-      client.subscribe("sealions/sync/response")
-      client.on("message", (topic: string, message: any) => {
-        if (topic === "sealions/sync/response") {
-          try {
-            const data = JSON.parse(message.toString())
-            if (typeof data.bullpen === "number") setBullpen(data.bullpen)
-            if (typeof data.raceNumber === "number") setRaceNumber(data.raceNumber)
-          } catch (e) {
-            console.error(e)
+        client.on("close", () => {
+          setStatus("Disconnected")
+        })
+
+        client.on("message", (topic: string, message: any) => {
+          if (topic === `${TOPIC_ID}/sync/response`) {
+            try {
+              const data = JSON.parse(message.toString())
+              if (typeof data.bullpen === "number") setBullpen(data.bullpen)
+              if (typeof data.raceNumber === "number") setRaceNumber(data.raceNumber)
+            } catch (e) {
+              console.error(e)
+            }
           }
-        }
-      })
+        })
+      } catch (err) {
+        console.error("Initialization Error:", err)
+      }
     }
     document.head.appendChild(script)
 
     return () => {
-      if (clientRef.current) clientRef.current.end()
+      if (clientRef.current) {
+        clientRef.current.end()
+      }
       script.remove()
     }
   }, [])
@@ -61,7 +80,7 @@ export default function IndexPage() {
     const val = Math.max(0, newValue)
     setBullpen(val)
     if (clientRef.current && status === "Connected") {
-      clientRef.current.publish("sealions/bullpen", String(val), { retain: true })
+      clientRef.current.publish(`${TOPIC_ID}/bullpen`, String(val), { retain: true, qos: 1 })
     }
   }
 
@@ -69,7 +88,7 @@ export default function IndexPage() {
     const val = Math.max(0, newValue)
     setRaceNumber(val)
     if (clientRef.current && status === "Connected") {
-      clientRef.current.publish("sealions/race", String(val), { retain: true })
+      clientRef.current.publish(`${TOPIC_ID}/race`, String(val), { retain: true, qos: 1 })
     }
   }
 
