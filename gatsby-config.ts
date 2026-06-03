@@ -6,9 +6,7 @@ const config: GatsbyConfig = {
     title: "Swimboard Sea Lions",
     siteUrl: "https://canadianator.github.io/swimboard-sea-lions",
   },
-  plugins: [
-    "gatsby-plugin-styled-components"
-  ],
+  plugins: [],
 };
 
 export default config;
