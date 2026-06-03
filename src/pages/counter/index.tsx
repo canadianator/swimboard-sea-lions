@@ -9,25 +9,34 @@ export default function CounterPage() {
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    const ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
+    let ws: WebSocket;
 
-    ws.onopen = () => {
-      // Announce presence so the controller sends its current numbers right away
-      ws.send(JSON.stringify({ type: "request_sync" }))
+    const connectDisplayWS = () => {
+      ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "request_sync" }))
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.topic === topic) {
+            setBullpen(data.bullpen)
+            setRaceNumber(data.raceNumber)
+          }
+        } catch (e) {}
+      }
+
+      ws.onclose = () => {
+        setTimeout(connectDisplayWS, 3000)
+      }
     }
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.topic === topic) {
-          setBullpen(data.bullpen)
-          setRaceNumber(data.raceNumber)
-        }
-      } catch (e) {}
-    }
+    connectDisplayWS()
 
     return () => {
-      ws.close()
+      if (ws) ws.close()
     }
   }, [])
 
