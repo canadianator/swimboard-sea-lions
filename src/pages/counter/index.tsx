@@ -17,10 +17,18 @@ export default function CounterPage() {
         wsHost: "sockjs-mt1.pusher.com",
         httpHost: "sockjs-mt1.pusher.com",
         forceTLS: true,
-        enabledTransports: ["ws", "xhr_streaming"]
+        enabledTransports: ["ws", "xhr_streaming"],
+        userAuthentication: { endpoint: "none" },
+        channelAuthorization: {
+          endpoint: "none",
+          transport: "ajax",
+          customHandler: (params: any, callback: any) => {
+            callback(null, { auth: "app-key:mock-auth" });
+          }
+        }
       })
 
-      const channel = pusher.subscribe("sea-lions-swimboard")
+      const channel = pusher.subscribe("private-sea-lions-swimboard")
 
       channel.bind("client-update-bullpen", (data: { value: number }) => {
         setBullpen(data.value)
@@ -35,10 +43,9 @@ export default function CounterPage() {
         setRaceNumber(data.raceNumber)
       })
 
-      // Ask the controller for the current numbers as soon as this page loads
-      setTimeout(() => {
+      channel.bind("pusher:subscription_succeeded", () => {
         channel.emit("client-request-sync", {})
-      }, 1000)
+      })
     }
     document.head.appendChild(script)
 
@@ -62,7 +69,7 @@ export default function CounterPage() {
       overflow: 'hidden'
     }}>
       <div style={{ textAlign: 'center', width: '90%', maxWidth: '1200px' }}>
-        <h1 style={{ fontSize: '3.5rem', color: '#0070f3', letterSpacing: '4px', margin: '0 0 60px 0', textTransform: 'uppercase', fontWeight: '900' }}>
+        <h1 style={{ fontSize: '3.5rem', color: '#0070f3', letterSpacing: '4px', margin: '0 0 40px 0', textTransform: 'uppercase', fontWeight: '900' }}>
           Sea Lions Swimboard
         </h1>
         
