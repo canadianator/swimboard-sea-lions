@@ -4,39 +4,53 @@ import type { HeadFC } from "gatsby"
 export default function CounterPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
-  const topic = "sealions/swimboard/live_data"
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    let ws: WebSocket;
-
-    const connectDisplayWS = () => {
-      ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "request_sync" }))
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.topic === topic) {
-            setBullpen(data.bullpen)
-            setRaceNumber(data.raceNumber)
+    const script = document.createElement("script")
+    script.src = "https://js.pusher.com/8.0.1/pusher.min.js"
+    script.async = true
+    script.onload = () => {
+      const pusher = new window.Pusher("app-key", {
+        cluster: "mt1",
+        wsHost: "sockjs-mt1.pusher.com",
+        httpHost: "sockjs-mt1.pusher.com",
+        forceTLS: true,
+        enabledTransports: ["ws", "xhr_streaming"],
+        userAuthentication: { endpoint: "none" },
+        channelAuthorization: {
+          endpoint: "none",
+          transport: "ajax",
+          customHandler: (params: any, callback: any) => {
+            callback(null, { auth: "app-key:mock-auth" });
           }
-        } catch (e) {}
-      }
+        }
+      })
 
-      ws.onclose = () => {
-        setTimeout(connectDisplayWS, 3000)
-      }
+      const channel = pusher.subscribe("private-sea-lions-channel")
+
+      channel.bind("client-update-bullpen", (data: { value: number }) => {
+        setBullpen(data.value)
+      })
+
+      channel.bind("client-update-race", (data: { value: number }) => {
+        setRaceNumber(data.value)
+      })
+
+      channel.bind("client-sync-data", (data: { bullpen: number, raceNumber: number }) => {
+        setBullpen(data.bullpen)
+        setRaceNumber(data.raceNumber)
+      })
+
+      channel.bind("pusher:subscription_succeeded", () => {
+        channel.emit("client-request-sync", {})
+      })
     }
-
-    connectDisplayWS()
+    document.head.appendChild(script)
 
     return () => {
-      if (ws) ws.close()
+      script.remove()
     }
   }, [])
 
