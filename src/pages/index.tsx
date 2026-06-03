@@ -1,7 +1,6 @@
 import * as React from "react"
 import type { HeadFC, PageProps } from "gatsby"
 import styled from 'styled-components'
-import { Counter, CounterKeys, FormatCount } from '../data/counts'
 
 const PageContainer = styled.div`
   width: calc(100% - 8px);
@@ -27,60 +26,44 @@ const ControllerButton = styled.button`
 `
 
 export default function IndexPage() {
-  const [controllerCounter, setControllerCounter] = React.useState<Counter | null>(null);
-  const [counts, setCounts] = React.useState({ bullpen: 0, raceNumber: 0 })
+  const [bullpen, setBullpen] = React.useState(0);
+  const [raceNumber, setRaceNumber] = React.useState(0);
 
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const newControllerCounter = new Counter();
-    setControllerCounter(newControllerCounter);
-    setCounts(newControllerCounter.getAllCounts());
-
-    const counterListener = () => {
-      setCounts(newControllerCounter.getAllCounts());
-    }
-    newControllerCounter.listenForCountChanges(counterListener);
-
-    return () => {
-      newControllerCounter.removeListener(counterListener);
-      newControllerCounter.dispose();
-    }
-  }, []);
+  const formatCount = (count: number) => {
+    return String(count).padStart(3, '0');
+  };
 
   return (
     <PageContainer>
       <h1> Swimboard Sea Lions Controller </h1>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '300px' }}>
         <h2>Current Counters</h2>
-        <div style={{ width: '150px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div><b>Bullpen:</b></div>
-            <div>{FormatCount(counts.bullpen)}</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div><b>Event:</b></div>
-            <div>{FormatCount(counts.raceNumber)}</div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div><b>Bullpen:</b></div>
+          <div>{formatCount(bullpen)}</div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div><b>Event:</b></div>
+          <div>{formatCount(raceNumber)}</div>
         </div>
 
         <h2>Update Counters</h2>
         <table width="100%">
           <thead>
             <tr>
-              <th>Bullpen</th>
-              <th>Race Number</th>
+              <th style={{ paddingBottom: '10px' }}>Bullpen</th>
+              <th style={{ paddingBottom: '10px' }}>Race Number</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>
-                <ControllerButton onClick={() => controllerCounter?.decrementCount(CounterKeys.Bullpen)}>Subtract</ControllerButton>
-                <ControllerButton onClick={() => controllerCounter?.incrementCount(CounterKeys.Bullpen)}>Add</ControllerButton>
+                <ControllerButton onClick={() => setBullpen(prev => Math.max(0, prev - 1))}>Subtract</ControllerButton>
+                <ControllerButton onClick={() => setBullpen(prev => prev + 1)}>Add</ControllerButton>
               </td>
               <td>
-                <ControllerButton onClick={() => controllerCounter?.decrementCount(CounterKeys.RaceNumber)}>Subtract</ControllerButton>
-                <ControllerButton onClick={() => controllerCounter?.incrementCount(CounterKeys.RaceNumber)}>Add</ControllerButton>
+                <ControllerButton onClick={() => setRaceNumber(prev => Math.max(0, prev - 1))}>Subtract</ControllerButton>
+                <ControllerButton onClick={() => setRaceNumber(prev => prev + 1)}>Add</ControllerButton>
               </td>
             </tr>
           </tbody>
