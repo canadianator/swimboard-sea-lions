@@ -42,14 +42,19 @@ const IndexPage: React.FC<PageProps> = () => {
   const [remainingTime, setRemainingTime] = React.useState<number | null>(null);
   const [counts, setCounts] = React.useState({ bullpen: 0, raceNumber: 0 })
 
-  React.useEffect(() => {
+ React.useEffect(() => {
+    // Only run this code if we are inside a browser environment
+    if (typeof window === "undefined") return;
+
     if (controllerCounter) {
       setCounts(controllerCounter.getAllCounts());
+      /* listening for updates to render */
       const counterListener = () => {
         setCounts(controllerCounter.getAllCounts());
       }
       controllerCounter.listenForCountChanges(counterListener);
 
+      /* listening for arrow keystrokes */
       const keyListener = debounceBy10Ms((event: KeyboardEvent) => {
         if (event.key === 'PageUp' || event.key === 'ArrowRight') {
           controllerCounter.registerTap(LeftRightTap.Right)
@@ -60,6 +65,7 @@ const IndexPage: React.FC<PageProps> = () => {
       })
       window.addEventListener('keydown', keyListener);
 
+      /* watching count-down */
       const interval = setInterval(() => {
         setRemainingTime(controllerCounter.getTimeRemainingOnCounterMs());
       }, 400);
@@ -73,6 +79,9 @@ const IndexPage: React.FC<PageProps> = () => {
     } else {
       const newControllerCounter = new Counter();
       setControllerCounter(newControllerCounter);
+      return () => {
+        newControllerCounter.dispose();
+      };
     }
   }, [controllerCounter]);
 
