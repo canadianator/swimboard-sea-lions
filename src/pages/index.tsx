@@ -1,42 +1,47 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
+import { Link } from "gatsby"
 
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
-  const wsRef = React.useRef<WebSocket | null>(null)
   const [status, setStatus] = React.useState("Connecting...")
+  const wsRef = React.useRef<WebSocket | null>(null)
 
-  // Generate a totally unique ID so other swim clubs don't cross your channel
   const topic = "sealions/swimboard/live_data"
 
   React.useEffect(() => {
+    // Ensuring code ONLY executes on the actual client device browser
     if (typeof window === "undefined") return
 
-    // Connect to a reliable, free public MQTT over WebSockets broker
-    const ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
-    wsRef.current = ws
+    const connectWS = () => {
+      const ws = new WebSocket("wss://broker.hivemq.com:8000/mqtt")
+      wsRef.current = ws
 
-    ws.onopen = () => {
-      setStatus("Connected")
-      // Send a standard MQTT connect packet flag
-      ws.send(JSON.stringify({ type: "connect" }))
-    };
+      ws.onopen = () => {
+        setStatus("Connected")
+        ws.send(JSON.stringify({ type: "connect" }))
+      }
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.type === "request_sync") {
-          // Push current numbers out immediately if the display board reloads
-          sendRawUpdate(bullpen, raceNumber)
-        }
-      } catch (e) {}
-    };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === "request_sync") {
+            ws.send(JSON.stringify({ topic, bullpen, raceNumber }))
+          }
+        } catch (e) {}
+      }
 
-    ws.onclose = () => setStatus("Disconnected. Reconnecting...")
+      ws.onclose = () => {
+        setStatus("Disconnected. Retrying...")
+        setTimeout(connectWS, 3000) // Auto-reconnect if pool signal drops
+      }
+    }
+
+    connectWS()
 
     return () => {
-      ws.close()
+      if (wsRef.current) wsRef.current.close()
     }
   }, [bullpen, raceNumber])
 
@@ -93,14 +98,13 @@ export default function IndexPage() {
         </div>
       </div>
 
-      <a 
-        href="./counter" 
-        target="_blank" 
-        rel="noopener noreferrer"
+      {/* Gatsby internal routing link */}
+      <Link 
+        to="/counter/" 
         style={{ display: 'inline-block', padding: '12px 24px', backgroundColor: '#222', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', width: '85%' }}
       >
-        View Display Scoreboard ↗
-      </a>
+        View Live Scoreboard Dashboard ↗
+      </Link>
     </div>
   )
 }
