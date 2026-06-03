@@ -1,95 +1,89 @@
 import * as React from "react"
 import type { HeadFC } from "gatsby"
 
-declare global {
-  interface Window {
-    mqtt: any;
-  }
-}
-
-// A unique ID suffix to prevent global public topic collisions
-const TOPIC_ID = "sealions_swim_2026_prod"
+// Unique ID to isolate your swim meet data stream from other users
+const CHANNEL_ID = "sealions_swim_meet_2026"
+const API_KEY = "v3/1?api_key=o7YgUXvAL92Z9ZjLg90Z5f5Z5f5Z5f5Z5f5Z5f5Z"
 
 export default function IndexPage() {
   const [bullpen, setBullpen] = React.useState(0)
   const [raceNumber, setRaceNumber] = React.useState(0)
   const [status, setStatus] = React.useState("Disconnected")
-  const clientRef = React.useRef<any>(null)
+  const wsRef = React.useRef<WebSocket | null>(null)
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    const script = document.createElement("script")
-    script.src = "https://unpkg.com/mqtt/dist/mqtt.min.js"
-    script.async = true
-    script.onload = () => {
+    // Connect via native browser WebSockets directly to the public cluster
+    const ws = new WebSocket(`wss://demo.piesocket.com/${API_KEY}&notify=1`)
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      setStatus("Connected")
+      // Send a ping to wake up the channel and sync up coordinates
+      ws.send(JSON.stringify({ type: "ping", channel: CHANNEL_ID }))
+    }
+
+    ws.onclose = () => {
+      setStatus("Disconnected")
+    }
+
+    ws.onerror = () => {
+      setStatus("Error")
+    }
+
+    ws.onmessage = (event) => {
       try {
-        // Explicitly separating connection details fixes browser websocket framing issues
-        const client = window.mqtt.connect({
-          host: 'broker.hivemq.com',
-          port: 8000,
-          protocol: 'ws',
-          path: '/mqtt',
-          clientId: 'sl_remote_' + Math.random().toString(16).substr(2, 8)
-        })
-        
-        clientRef.current = client
+        const msg = JSON.parse(event.data)
+        if (msg.channel !== CHANNEL_ID) return
 
-        client.on("connect", () => {
-          setStatus("Connected")
-          client.subscribe(`${TOPIC_ID}/sync/response`)
-          // Ask display board for data if it's already running
-          client.publish(`${TOPIC_ID}/sync/request`, "sync")
-        })
-
-        client.on("error", (err: any) => {
-          console.error("MQTT Error:", err)
-          setStatus("Error Connecting")
-        })
-
-        client.on("close", () => {
-          setStatus("Disconnected")
-        })
-
-        client.on("message", (topic: string, message: any) => {
-          if (topic === `${TOPIC_ID}/sync/response`) {
-            try {
-              const data = JSON.parse(message.toString())
-              if (typeof data.bullpen === "number") setBullpen(data.bullpen)
-              if (typeof data.raceNumber === "number") setRaceNumber(data.raceNumber)
-            } catch (e) {
-              console.error(e)
-            }
-          }
-        })
-      } catch (err) {
-        console.error("Initialization Error:", err)
+        if (msg.type === "sync-request") {
+          ws.send(JSON.stringify({
+            type: "sync-broadcast",
+            channel: CHANNEL_ID,
+            bullpen: localStorage.getItem("sl_bp") || "0",
+            race: localStorage.getItem("sl_rc") || "0"
+          }))
+        }
+      } catch (e) {
+        // Handle unexpected parsing frames safely
       }
     }
-    document.head.appendChild(script)
+
+    // Pull initial states out of storage fallback safely
+    const localBp = localStorage.getItem("sl_bp")
+    const localRc = localStorage.getItem("sl_rc")
+    if (localBp) setBullpen(parseInt(localBp, 10))
+    if (localRc) setRaceNumber(parseInt(localRc, 10))
 
     return () => {
-      if (clientRef.current) {
-        clientRef.current.end()
-      }
-      script.remove()
+      ws.close()
     }
   }, [])
+
+  const publishChange = (bpVal: number, rcVal: number) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "update",
+        channel: CHANNEL_ID,
+        bullpen: bpVal,
+        race: rcVal
+      }))
+    }
+  }
 
   const updateBullpen = (newValue: number) => {
     const val = Math.max(0, newValue)
     setBullpen(val)
-    if (clientRef.current && status === "Connected") {
-      clientRef.current.publish(`${TOPIC_ID}/bullpen`, String(val), { retain: true, qos: 1 })
-    }
+    localStorage.setItem("sl_bp", String(val))
+    publishChange(val, raceNumber)
   }
 
   const updateRace = (newValue: number) => {
     const val = Math.max(0, newValue)
     setRaceNumber(val)
-    if (clientRef.current && status === "Connected") {
-      clientRef.current.publish(`${TOPIC_ID}/race`, String(val), { retain: true, qos: 1 })
-    }
+    localStorage.setItem("sl_rc", String(val))
+    publishChange(bullpen, val)
   }
 
   return (
