@@ -1,13 +1,9 @@
-# Sample workflow for building and deploying a Gatsby site to GitHub Pages
-#
-# To get started with Gatsby see: https://www.gatsbyjs.com/docs/quick-start/
-#
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
-      - main # Triggers the build when you push to main
+      - main
 
 permissions:
   contents: read
@@ -22,7 +18,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps: deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,13 +27,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-modules: 'npm'
+          node-version: '18'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build Gatsby
-        run: npm run build -- --prefix-paths
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
