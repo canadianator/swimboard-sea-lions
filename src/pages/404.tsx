@@ -1,13 +1,19 @@
 import * as React from "react"
-import { HeadFC, navigate } from "gatsby"
+import { HeadFC, PageProps } from "gatsby"
+// Import your actual controller/counter components here
+// (Adjust the path below depending on where you saved them)
+import Controller from "../components/Controller" 
 
-const NotFoundPage = () => {
-  React.useEffect(() => {
-    navigate('/controller')
-  })
-  return <>Not Found</>
+const IndexPage: React.FC<PageProps> = () => {
+  return (
+    <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <h1>Swimboard Sea Lions Controller</h1>
+      {/* Render your application interface here */}
+      <Controller />
+    </main>
+  )
 }
 
-export default NotFoundPage
+export default IndexPage
 
-export const Head: HeadFC = () => <title>Not found</title>
+export const Head: HeadFC = () => <title>Home Page</title>
